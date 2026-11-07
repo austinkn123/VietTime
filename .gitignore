@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Austin's voice and generated audio stay on his PC
+spike/recordings/
+*.wav
