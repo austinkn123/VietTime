@@ -5,3 +5,6 @@ __pycache__/
 # Austin's voice and generated audio stay on his PC
 spike/recordings/
 *.wav
+
+# Server history and reply audio stay on the PC
+server/data/
