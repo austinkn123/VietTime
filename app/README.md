@@ -6,10 +6,14 @@ The app you talk to. It runs inside **Expo Go**, a free app from the App Store, 
 
 1. On the PC, install [Node.js LTS](https://nodejs.org/).
 2. On the iPhone, install **Expo Go** from the App Store.
-3. In Command Prompt:
+3. Make a free account at [expo.dev/signup](https://expo.dev/signup). Expo Go on iPhone only opens projects when the phone and the PC are signed in to the same Expo account ([why](https://docs.expo.dev/troubleshooting/expo-go-sign-in-required/)).
+   - On the iPhone: in Expo Go, tap the account icon in the top-right and sign in.
+   - On the PC: run `npx expo login` (step 4 below first) and sign in with the same account.
+4. In Command Prompt:
    ```
    cd VietTime\app
    npm install
+   npx expo login
    ```
 
 ## Run it
@@ -48,6 +52,7 @@ The app guesses the server's address from the PC it loaded from. If the home scr
 - It works only on your home Wi-Fi, with both windows running on the PC.
 - It opens through Expo Go rather than as its own app icon. Installing it as a standalone app needs either a Mac or a paid Apple developer account, so that's not set up.
 - If Expo Go says the project needs a newer or older SDK, update Expo Go from the App Store.
+- If Expo Go says "You need to be signed in to Expo Go and Expo CLI", sign in on both sides with the same account (setup step 3), then restart `npx expo start` without `--offline`.
 
 ## For development
 
