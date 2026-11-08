@@ -1,5 +1,7 @@
 // Client for the VietTime server running on the PC (server/viettime_server/api.py).
 
+import { File } from 'expo-file-system';
+
 export type Persona = {
   key: string;
   topic: string;
@@ -74,9 +76,11 @@ export function makeApi(base: string) {
     let res: Response;
     try {
       res = await fetch(base + path, { ...init, signal: controller.signal });
-    } catch {
+    } catch (e) {
+      // fetch also throws here when it can't build the request, so keep its own words for debugging.
       const why = controller.signal.aborted ? 'The server took too long to answer.' : `Can't reach the server at ${base}.`;
-      throw new ApiError(`${why} Is it running on your PC, and is your phone on the same Wi-Fi?`, null);
+      const detail = controller.signal.aborted ? '' : ` (${e instanceof Error ? e.message : String(e)})`;
+      throw new ApiError(`${why} Is it running on your PC, and is your phone on the same Wi-Fi?${detail}`, null);
     } finally {
       clearTimeout(timer);
     }
@@ -105,10 +109,13 @@ export function makeApi(base: string) {
     newSession: (topic: string | null) => call<Session>('/api/sessions', json({ topic })),
     open: (id: number) => call<Turn>(`/api/sessions/${id}/open`, { method: 'POST' }, TURN),
     sendText: (id: number, text: string) => call<Turn>(`/api/sessions/${id}/turns/text`, json({ text }), TURN),
-    sendAudio: (id: number, uri: string) => {
+    sendAudio: async (id: number, uri: string) => {
+      const file = new File(uri);
+      if (!file.exists || !file.size) throw new ApiError("The recording didn't save on the phone. Try again.", null);
       const form = new FormData();
-      // React Native uploads a local file from { uri, name, type }.
-      form.append('audio', { uri, name: 'turn.wav', type: 'audio/wav' } as unknown as Blob);
+      // Expo SDK 58's fetch uploads an expo-file-system File. React Native's old { uri, name, type } object
+      // fails inside fetch before anything is sent.
+      form.append('audio', file);
       return call<Turn>(`/api/sessions/${id}/turns`, { method: 'POST', body: form }, TURN);
     },
     end: (id: number) => call<Transcript>(`/api/sessions/${id}/end`, { method: 'POST' }),
