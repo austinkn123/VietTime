@@ -26,7 +26,6 @@ The report checks **fit** (no crashes, brain fully on the GPU), **speed** (media
    ```
    git clone https://github.com/austinkn123/VietTime.git
    cd VietTime
-   git checkout step0-test
    cd spike
    ```
 4. Make a virtual environment and turn it on (in Command Prompt; in PowerShell use `.venv\Scripts\Activate.ps1`):
