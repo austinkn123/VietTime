@@ -1,0 +1,9 @@
+# Enough for practice mode (python -m viettime_server --fake)
+fastapi>=0.115
+uvicorn>=0.30
+python-multipart>=0.0.9
+requests
+soundfile
+numpy
+pytest
+httpx

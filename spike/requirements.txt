@@ -1,0 +1,9 @@
+# Install PyTorch with CUDA first (README step 5), then: pip install -r requirements.txt
+vieneu[cuda]==3.8.3
+transformers
+sounddevice
+soundfile
+soxr
+psutil
+requests
+pytest

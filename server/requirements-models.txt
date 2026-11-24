@@ -1,0 +1,5 @@
+# The real models. Install PyTorch with CUDA first (README), then: pip install -r requirements-models.txt
+-r requirements.txt
+vieneu[cuda]==3.8.3
+transformers
+soxr
