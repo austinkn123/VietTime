@@ -3,11 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { PlayButton } from '@/components/ui';
 import { colors, radius, space } from '@/theme';
 
-export function LearnerBubble({ text, typed }: { text: string; typed?: boolean }) {
+export function LearnerBubble({ text, typed, fake }: { text: string; typed?: boolean; fake?: boolean }) {
   return (
     <View style={[styles.bubble, styles.learner]}>
       <Text style={styles.who}>{typed ? 'You (typed)' : 'You (what it heard)'}</Text>
       <Text style={styles.text}>{text}</Text>
+      {fake && !typed ? <Text style={styles.note}>Practice mode: a canned sentence, not what you said.</Text> : null}
     </View>
   );
 }

@@ -21,6 +21,15 @@ type Item =
 
 type Pending = { kind: 'open' } | { kind: 'audio'; uri: string } | { kind: 'text'; text: string };
 
+type LastTurn = { timings: Record<string, number>; roundTrip: number };
+
+// Why a press on the talk button didn't start recording, so a tap is never silently ignored.
+const NOT_READY: Partial<Record<TalkPhase, string>> = {
+  starting: 'Still connecting to your PC. One sec.',
+  thinking: 'Wait for the reply first. Your PC is still working on it.',
+  failed: "Not connected to your PC, so the mic can't send anything. Go back and check the server window.",
+};
+
 export default function Talk() {
   const { topic } = useLocalSearchParams<{ topic: string }>();
   const { api } = useSettings();
@@ -39,6 +48,8 @@ export default function Talk() {
   const [typing, setTyping] = useState(Platform.OS === 'web');
   const [draft, setDraft] = useState('');
   const [ending, setEnding] = useState(false);
+  const [pendingKind, setPendingKind] = useState<Pending['kind'] | null>(null);
+  const [lastTurn, setLastTurn] = useState<LastTurn | null>(null);
 
   // Refs, because press handlers and timers outlive the render that created them.
   const phaseRef = useRef<TalkPhase>('starting');
@@ -78,6 +89,13 @@ export default function Talk() {
   // Start a conversation; the tutor opens after a short pause.
   useEffect(() => {
     let cancelled = false;
+    // Ask for the mic now, so the first press records instead of only showing the permission prompt.
+    if (Platform.OS !== 'web') {
+      requestRecordingPermissionsAsync().then(
+        (p) => !cancelled && !p.granted && setError('The microphone is off. Turn it on in iPhone Settings → Expo Go → Microphone.'),
+        () => {},
+      );
+    }
     api.health().then((h) => !cancelled && setPracticeMode(h.mode === 'fake'), () => {});
     api.newSession(topic === 'surprise' ? null : (topic ?? null)).then(
       (s) => {
@@ -108,9 +126,11 @@ export default function Talk() {
     const s = sessionRef.current;
     if (!s) return;
     clearOpener();
+    setPendingKind(pending.kind);
     setPhase('thinking');
     setHint(null);
     setError(null);
+    const sentAt = Date.now();
     try {
       let turn: Turn;
       if (pending.kind === 'open') turn = await api.open(s.id);
@@ -119,6 +139,7 @@ export default function Talk() {
 
       failed.current = null;
       turns.current += 1;
+      setLastTurn({ timings: turn.timings, roundTrip: (Date.now() - sentAt) / 1000 });
       const audioUrl = turn.audio_url ? api.audioUrl(turn.audio_url) : null;
       const key = String(turn.turn_id);
       setItems((prev) => [
@@ -143,7 +164,11 @@ export default function Talk() {
   }
 
   async function onPressIn() {
-    if (phaseRef.current !== 'ready' || !sessionRef.current) return;
+    if (phaseRef.current !== 'ready' || !sessionRef.current) {
+      const why = NOT_READY[phaseRef.current];
+      if (why) setHint(why);
+      return;
+    }
     pressing.current = true;
     clearOpener();
     player.stop();
@@ -186,6 +211,7 @@ export default function Talk() {
   async function finishRecording() {
     if (phaseRef.current !== 'recording') return;
     clearMax();
+    setPendingKind('audio');
     setPhase('thinking');
     const heldMs = Date.now() - recordStarted.current;
     try {
@@ -234,6 +260,8 @@ export default function Talk() {
   }
 
   const persona = session?.persona;
+  const playing = player.playingUrl !== null;
+  const status = statusLine(phase, seconds, pendingKind, playing, persona?.name ?? 'The tutor');
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={100}>
@@ -249,13 +277,22 @@ export default function Talk() {
         }}
       />
 
+      {practiceMode && (
+        <View style={styles.fake}>
+          <Text style={styles.fakeTitle}>PRACTICE MODE: no real models</Text>
+          <Text style={styles.fakeSub}>
+            The server was started with --fake. It ignores your voice, answers with canned lines, and beeps instead of speaking. Restart it without --fake for the
+            real thing.
+          </Text>
+        </View>
+      )}
+
       <ScrollView
         ref={scroll}
         contentContainerStyle={styles.chat}
         onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
         keyboardShouldPersistTaps="handled"
       >
-        {practiceMode && <Notice kind="warn">Practice mode: canned replies and beeps.</Notice>}
         {persona && (
           <View style={styles.intro}>
             <Text style={styles.introTitle}>
@@ -268,7 +305,7 @@ export default function Talk() {
         )}
         {items.map((it) =>
           it.role === 'learner' ? (
-            <LearnerBubble key={it.key} text={it.text} typed={it.typed} />
+            <LearnerBubble key={it.key} text={it.text} typed={it.typed} fake={practiceMode} />
           ) : (
             <TutorBubble
               key={it.key}
@@ -284,6 +321,10 @@ export default function Talk() {
       </ScrollView>
 
       <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, space.lg) }]}>
+        <View style={styles.status} accessibilityLiveRegion="polite">
+          <Text style={styles.statusNow}>{status}</Text>
+          {lastTurn && <Text style={styles.statusLast}>{formatLastTurn(lastTurn)}</Text>}
+        </View>
         {hint && <Text style={styles.hint}>{hint}</Text>}
         {error && (
           <View style={{ gap: space.sm, alignSelf: 'stretch' }}>
@@ -320,7 +361,40 @@ export default function Talk() {
   );
 }
 
+/** One line that always says what the app is doing right now. */
+function statusLine(phase: TalkPhase, seconds: number, pending: Pending['kind'] | null, playing: boolean, name: string): string {
+  switch (phase) {
+    case 'starting':
+      return 'Connecting to your PC…';
+    case 'arming':
+      return 'Turning on the mic…';
+    case 'recording':
+      return `Recording ${seconds}s. Let go to send.`;
+    case 'thinking': {
+      const steps = pending === 'audio' ? 'sending your voice → ears → brain → voice' : 'brain → voice';
+      return `Your PC is working (${steps}) ${seconds}s`;
+    }
+    case 'failed':
+      return 'Not connected to your PC.';
+    case 'ready':
+      return playing ? `Playing ${name}'s reply. Hold the button to cut in.` : 'Ready. Hold the button and talk.';
+  }
+}
+
+/** The server's per-step seconds, plus the full wait on the phone; the gap is the Wi-Fi. */
+function formatLastTurn({ timings, roundTrip }: LastTurn): string {
+  const parts = (['ears', 'brain', 'voice'] as const).filter((k) => timings[k] !== undefined).map((k) => `${k} ${timings[k].toFixed(1)}s`);
+  const wifi = Math.max(0, roundTrip - (timings.total ?? 0));
+  return `Last turn: ${parts.join(' · ')} · Wi-Fi ${wifi.toFixed(1)}s · total ${roundTrip.toFixed(1)}s`;
+}
+
 const styles = StyleSheet.create({
+  fake: { backgroundColor: colors.warnSoft, borderBottomWidth: 2, borderBottomColor: colors.warn, padding: space.md, gap: 2 },
+  fakeTitle: { color: colors.warn, fontSize: 15, fontWeight: '800' },
+  fakeSub: { color: colors.warn, fontSize: 13, lineHeight: 18 },
+  status: { alignSelf: 'stretch', alignItems: 'center', gap: 2 },
+  statusNow: { fontSize: 15, fontWeight: '600', color: colors.ink, textAlign: 'center' },
+  statusLast: { fontSize: 12, color: colors.muted, textAlign: 'center' },
   end: { color: colors.danger, fontSize: 17, fontWeight: '600' },
   chat: { padding: space.lg, gap: space.md },
   intro: { backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md, borderWidth: 1, borderColor: colors.line },

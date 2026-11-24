@@ -34,7 +34,7 @@ export function TalkButton({
         accessibilityRole="button"
         accessibilityLabel="Hold to talk"
         accessibilityState={{ disabled, busy: phase === 'thinking' }}
-        disabled={disabled}
+        // Never `disabled`: a disabled Pressable drops taps silently. The screen says why it can't record yet.
         onPressIn={onPressIn}
         onPressOut={onPressOut}
         hitSlop={16}

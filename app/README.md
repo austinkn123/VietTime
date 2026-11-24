@@ -41,6 +41,7 @@ The app guesses the server's address from the PC it loaded from. If the home scr
 
 - Pick a topic, or **Surprise me** for someone different from last time.
 - The tutor starts talking after about 3 seconds. To go first, hold the button before then.
+- The line above the button always says what's happening: connecting, recording, your PC working (ears, brain, voice), or playing. After each reply it shows how long each step took and how much was Wi-Fi.
 - **Hold** the big button while you talk and **let go** to send. You'll see what it heard, then the reply plays out loud. Tap ▶ to hear a reply again.
 - Stuck on a word? Ask in English: "How do you say deadline?"
 - **Type instead** under the button lets you type a turn.
